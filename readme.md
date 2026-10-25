@@ -1,13 +1,13 @@
 # Similar Products API
 
-A Spring Boot service for returning product details for the products similar to a given product. This repository currently contains the technical-test contracts, mock services, and load-test infrastructure; the application source and build descriptor have not been added yet.
+A Java 21 and Spring Boot service for returning details of products similar to a given product. The repository contains the technical-test contracts, mock services, load-test infrastructure, and the initial application scaffold.
 
 ## Project status
 
-- The required application is expected to listen on port `5000`.
+- The application scaffold listens on port `5000` by default; override it with `SERVER_PORT`.
 - The agreed endpoint is `GET /product/{productId}/similar`.
 - The mock APIs listen on port `3001`.
-- The Spring Boot application cannot be built or started from this checkout yet because it has no application source, Maven/Gradle build file, or build wrapper. The implementation workflow is described in [workflow.md](./workflow.md).
+- The endpoint is not implemented yet. The current scaffold can be built and started, but requests to the API route will return `404` until its feature pull request is merged.
 
 ## API contract
 
@@ -39,7 +39,11 @@ The contract does not define how to handle an individual related-product lookup 
 
 ## Technology and architecture
 
-The requested implementation is a Spring Boot application. The recommended design is a small hexagonal application:
+The application is configured with Java 21, Spring Boot `4.1.2`, Spring MVC, and Spring `RestClient`. The recommended design is a small hexagonal application:
+
+- Runtime starters: `spring-boot-starter-webmvc` and `spring-boot-starter-restclient`.
+- Test dependencies: `spring-boot-starter-test`, the focused Spring MVC and `RestClient` test starters, and OkHttp MockWebServer 3 for HTTP adapter tests.
+- Maven Wrapper `3.3.4` pins Apache Maven `3.10.0`; dependency versions are managed by the Spring Boot parent where available.
 
 - An HTTP controller exposes the public endpoint.
 - An application use case coordinates the similar-ID and product-detail lookups.
@@ -50,14 +54,21 @@ Keep the orchestration independent of Spring and HTTP DTOs. Fetch product detail
 
 ## Build and run the application
 
-This starter checkout does not include a buildable application yet. The implementation workflow calls for a Maven Wrapper-based Spring Boot project; once its build files are added, the documented commands should include:
+Prerequisites: Java 21 and network access the first time the Maven Wrapper downloads Maven `3.10.0` and project dependencies. A global Maven installation is not required.
 
 ```bash
-./mvnw clean verify
+./mvnw --batch-mode verify
 ./mvnw spring-boot:run
 ```
 
-On Windows PowerShell, use `.\mvnw.cmd clean verify` and `.\mvnw.cmd spring-boot:run`. The app should expose port `5000`. These commands are planned and are not runnable until the application scaffold is committed.
+On Windows PowerShell:
+
+```powershell
+.\mvnw.cmd --batch-mode verify
+.\mvnw.cmd spring-boot:run
+```
+
+The build targets Java 21 and uses the Maven Wrapper checked into the repository. The application starts on port `5000`; set `SERVER_PORT` to override it. The test dependencies are configured, and feature tests will be added alongside each TDD implementation pull request.
 
 ## Run the supplied mock services and load test
 
@@ -73,7 +84,7 @@ Check that the similar-ID mock responds:
 curl http://localhost:3001/product/1/similarids
 ```
 
-After the application is running on port `5000`, run the provided k6 test:
+After the similar-products endpoint has been implemented and the application is running on port `5000`, run the provided k6 test:
 
 ```bash
 docker-compose run --rm k6 run scripts/test.js
@@ -81,7 +92,7 @@ docker-compose run --rm k6 run scripts/test.js
 
 The Grafana dashboard is available at <http://localhost:3000/d/Le2Ku9NMk/k6-performance-test>.
 
-The k6 script sends requests to the app through `host.docker.internal:5000`. It defines five scenarios—normal, not found, error, slow, and very slow—with 200 virtual users for 10 seconds per scenario. The mocks include individual detail responses delayed by 100 ms, 1 second, 5 seconds, and 50 seconds. The script currently measures load and response metrics; it does not assert response bodies or define pass/fail thresholds. Add functional contract tests as part of the application implementation.
+The k6 script sends requests to the app through `host.docker.internal:5000`. It defines five scenarios—normal, not found, error, slow, and very slow—with 200 virtual users for 10 seconds per scenario. The mocks include individual detail responses delayed by 100 ms, 1 second, 5 seconds, and 50 seconds. The script measures load and response metrics; it does not assert response bodies or define pass/fail thresholds. Functional contract tests belong in the Maven test suite.
 
 ## Evaluation criteria
 
@@ -93,9 +104,13 @@ The k6 script sends requests to the app through `host.docker.internal:5000`. It 
 
 | Path | Purpose |
 | --- | --- |
+| `pom.xml` | Java 21 and Spring Boot build configuration |
+| `mvnw`, `mvnw.cmd`, `.mvn/wrapper/` | Pinned Maven Wrapper |
+| `src/main/java/` | Spring Boot application entry point |
+| `src/main/resources/application.properties` | Application name and port configuration |
+| `.github/workflows/ci.yml` | Build verification on pushes and pull requests |
 | `similarProducts.yaml` | Contract for the API to implement |
 | `existingApis.yaml` | Contracts for the mock APIs |
 | `shared/simulado/mocks.json` | Mock responses used by Simulado |
 | `shared/k6/test.js` | Load-test scenarios |
 | `docker-compose.yaml` | Mock, load-test, and reporting infrastructure |
-| `workflow.md` | TDD-oriented implementation workflow |
