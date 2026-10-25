@@ -50,6 +50,23 @@ class GetSimilarProductsServiceTest {
     }
 
     @Test
+    void looksUpEachSimilarIdOnceAndPreservesTheFirstOccurrenceOrder() {
+        List<String> detailLookups = new ArrayList<>();
+        SimilarProductIdsPort similarProductIdsPort = productId -> List.of("3", "2", "3", "2");
+        ProductDetailsPort productDetailsPort = productId -> {
+            detailLookups.add(productId);
+            return product(productId, "Product " + productId);
+        };
+        GetSimilarProductsService service = new GetSimilarProductsService(
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
+
+        List<ProductDetail> result = service.getSimilarProducts("1");
+
+        assertThat(detailLookups).containsExactly("3", "2");
+        assertThat(result).containsExactly(product("3", "Product 3"), product("2", "Product 2"));
+    }
+
+    @Test
     void returnsAnEmptyListWithoutLookingUpDetailsWhenThereAreNoSimilarIds() {
         AtomicInteger detailLookups = new AtomicInteger();
         SimilarProductIdsPort similarProductIdsPort = productId -> List.of();

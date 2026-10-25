@@ -64,6 +64,22 @@ class SimilarProductIdsRestClientAdapterTest {
     }
 
     @Test
+    void treatsANullSimilarIdAsAnUnavailableUpstream() {
+        mockWebServer.enqueue(jsonResponse(200, "[null]"));
+
+        assertThatThrownBy(() -> adapter.findSimilarProductIds("1"))
+                .isInstanceOf(SimilarProductIdsUnavailableException.class);
+    }
+
+    @Test
+    void treatsABlankSimilarIdAsAnUnavailableUpstream() {
+        mockWebServer.enqueue(jsonResponse(200, "[\" \" ]"));
+
+        assertThatThrownBy(() -> adapter.findSimilarProductIds("1"))
+                .isInstanceOf(SimilarProductIdsUnavailableException.class);
+    }
+
+    @Test
     void mapsAnUpstreamNotFoundResponseToProductNotFound() {
         mockWebServer.enqueue(jsonResponse(404, "{\"message\":\"Product not found\"}"));
 

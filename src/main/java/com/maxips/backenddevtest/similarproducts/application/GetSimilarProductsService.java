@@ -8,6 +8,7 @@ import com.maxips.backenddevtest.similarproducts.port.in.GetSimilarProductsUseCa
 import com.maxips.backenddevtest.similarproducts.port.out.ProductDetailsPort;
 import com.maxips.backenddevtest.similarproducts.port.out.SimilarProductIdsPort;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -35,7 +36,8 @@ public class GetSimilarProductsService implements GetSimilarProductsUseCase {
 
     @Override
     public List<ProductDetail> getSimilarProducts(String productId) {
-        List<String> similarIds = similarProductIdsPort.findSimilarProductIds(productId);
+        List<String> similarIds = List.copyOf(
+                new LinkedHashSet<>(similarProductIdsPort.findSimilarProductIds(productId)));
         List<ProductDetail> products = new ArrayList<>(similarIds.size());
         ProductDetailsUnavailableException technicalFailure = null;
         ProductLookupOverloadedException overloadFailure = null;
