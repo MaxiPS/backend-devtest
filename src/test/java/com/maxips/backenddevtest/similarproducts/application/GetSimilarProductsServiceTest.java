@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.maxips.backenddevtest.similarproducts.application.exception.ProductDetailsUnavailableException;
+import com.maxips.backenddevtest.similarproducts.application.exception.ProductLookupOverloadedException;
 import com.maxips.backenddevtest.similarproducts.application.exception.RelatedProductNotFoundException;
 import com.maxips.backenddevtest.similarproducts.domain.ProductDetail;
 import com.maxips.backenddevtest.similarproducts.port.out.ProductDetailsPort;
@@ -12,10 +13,18 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class GetSimilarProductsServiceTest {
+
+    private static final Executor DIRECT_EXECUTOR = Runnable::run;
 
     @Test
     void returnsProductDetailsInSimilarIdOrder() {
@@ -32,7 +41,7 @@ class GetSimilarProductsServiceTest {
             return products.get(productId);
         };
         GetSimilarProductsService service = new GetSimilarProductsService(
-                similarProductIdsPort, productDetailsPort);
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
 
         List<ProductDetail> result = service.getSimilarProducts("1");
 
@@ -49,7 +58,7 @@ class GetSimilarProductsServiceTest {
             return product("2", "Dress");
         };
         GetSimilarProductsService service = new GetSimilarProductsService(
-                similarProductIdsPort, productDetailsPort);
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
 
         assertThat(service.getSimilarProducts("1")).isEmpty();
         assertThat(detailLookups).hasValue(0);
@@ -68,7 +77,7 @@ class GetSimilarProductsServiceTest {
             default -> throw new IllegalArgumentException("Unexpected product ID: " + productId);
         };
         GetSimilarProductsService service = new GetSimilarProductsService(
-                similarProductIdsPort, productDetailsPort);
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
 
         assertThat(service.getSimilarProducts("1")).containsExactly(second, third);
     }
@@ -80,7 +89,7 @@ class GetSimilarProductsServiceTest {
             throw new RelatedProductNotFoundException(productId);
         };
         GetSimilarProductsService service = new GetSimilarProductsService(
-                similarProductIdsPort, productDetailsPort);
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
 
         assertThat(service.getSimilarProducts("1")).isEmpty();
     }
@@ -96,9 +105,87 @@ class GetSimilarProductsServiceTest {
             throw unavailable;
         };
         GetSimilarProductsService service = new GetSimilarProductsService(
-                similarProductIdsPort, productDetailsPort);
+                similarProductIdsPort, productDetailsPort, DIRECT_EXECUTOR);
 
         assertThatThrownBy(() -> service.getSimilarProducts("1")).isSameAs(unavailable);
+    }
+
+    @Test
+    void performsLookupsConcurrentlyAndPreservesTheSimilarIdOrder() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch firstLookupStarted = new CountDownLatch(1);
+        CountDownLatch otherLookupsCompleted = new CountDownLatch(2);
+        AtomicInteger activeLookups = new AtomicInteger();
+        AtomicInteger maximumActiveLookups = new AtomicInteger();
+        SimilarProductIdsPort similarProductIdsPort = productId -> List.of("first", "second", "third");
+        ProductDetailsPort productDetailsPort = productId -> {
+            int active = activeLookups.incrementAndGet();
+            maximumActiveLookups.accumulateAndGet(active, Math::max);
+            try {
+                if (productId.equals("first")) {
+                    firstLookupStarted.countDown();
+                    if (!otherLookupsCompleted.await(2, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Other lookups did not run concurrently");
+                    }
+                } else {
+                    if (!firstLookupStarted.await(2, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("First lookup did not start");
+                    }
+                    otherLookupsCompleted.countDown();
+                }
+                return product(productId, productId);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            } finally {
+                activeLookups.decrementAndGet();
+            }
+        };
+        GetSimilarProductsService service = new GetSimilarProductsService(
+                similarProductIdsPort, productDetailsPort, executor);
+
+        try {
+            assertThat(service.getSimilarProducts("1")).containsExactly(
+                    product("first", "first"),
+                    product("second", "second"),
+                    product("third", "third"));
+            assertThat(maximumActiveLookups).hasValue(2);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void failsWithAnOverloadExceptionWhenTheLookupExecutorRejectsEveryTask() {
+        SimilarProductIdsPort similarProductIdsPort = productId -> List.of("2", "3");
+        ProductDetailsPort productDetailsPort = productId -> product(productId, "Product " + productId);
+        Executor rejectingExecutor = command -> {
+            throw new RejectedExecutionException("Lookup executor is saturated");
+        };
+        GetSimilarProductsService service = new GetSimilarProductsService(
+                similarProductIdsPort, productDetailsPort, rejectingExecutor);
+
+        assertThatThrownBy(() -> service.getSimilarProducts("1"))
+                .isInstanceOf(ProductLookupOverloadedException.class);
+    }
+
+    @Test
+    void keepsSuccessfulDetailsWhenTheLookupExecutorRejectsAnotherTask() {
+        SimilarProductIdsPort similarProductIdsPort = productId -> List.of("2", "3");
+        ProductDetailsPort productDetailsPort = productId -> product(productId, "Product " + productId);
+        AtomicInteger submittedTasks = new AtomicInteger();
+        Executor executor = command -> {
+            if (submittedTasks.getAndIncrement() == 0) {
+                command.run();
+            } else {
+                throw new RejectedExecutionException("Lookup executor is saturated");
+            }
+        };
+        GetSimilarProductsService service = new GetSimilarProductsService(
+                similarProductIdsPort, productDetailsPort, executor);
+
+        assertThat(service.getSimilarProducts("1"))
+                .containsExactly(product("2", "Product 2"));
     }
 
     private ProductDetail product(String id, String name) {

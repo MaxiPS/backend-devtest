@@ -7,7 +7,8 @@ A Java 21 and Spring Boot service for returning details of products similar to a
 - The application scaffold listens on port `5000` by default; override it with `SERVER_PORT`.
 - The agreed endpoint is `GET /product/{productId}/similar`.
 - The mock APIs listen on port `3001`.
-- The endpoint returns similar product details in ID order, an empty array when no similar IDs exist, and applies the documented partial-failure policy. Bounded concurrency is a separate follow-up change.
+- The endpoint returns similar product details in ID order, an empty array when no similar IDs exist, and applies the documented partial-failure policy.
+- Product detail lookups run concurrently with a per-instance limit and a bounded queue.
 
 ## API contract
 
@@ -42,8 +43,9 @@ The API follows these related-product failure rules:
 - Omit isolated detail `5xx`, transport, and timeout failures if at least one detail succeeds.
 - Return `[]` if all detail lookups return `404`.
 - Return `502 Bad Gateway` if no detail succeeds and at least one lookup fails technically.
+- Return `503 Service Unavailable` if lookup capacity is exhausted and no detail succeeds; keep successful details when other lookups are rejected.
 
-The supplied load scenarios exercise these cases.
+The supplied load scenarios exercise dependency failures and delays. Executor saturation behavior is covered by unit tests.
 
 ## Technology and architecture
 
@@ -58,7 +60,7 @@ The application is configured with Java 21, Spring Boot `4.1.2`, Spring MVC, and
 - Outbound ports describe those two dependencies.
 - HTTP adapters call the mock APIs; their base URL and timeout settings should be configurable.
 
-Keep the orchestration independent of Spring and HTTP DTOs. Fetch product details concurrently with a bounded limit, then restore the original ID order before returning the result. Do not add caching, retries, or a resilience framework without a clear requirement and tests for the behavior.
+Keep the orchestration independent of Spring and HTTP DTOs. Fetch product details concurrently with a bounded limit, then restore the original ID order before returning the result. The shared executor allows up to 100 active product lookups per instance and queues up to 1000 pending lookups by default. Do not add caching, retries, or a resilience framework without a clear requirement and tests for the behavior.
 
 ## Build and run the application
 
@@ -86,6 +88,8 @@ The build targets Java 21 and uses the Maven Wrapper checked into the repository
 | Product API base URL | `PRODUCT_API_BASE_URL` | `http://localhost:3001` |
 | Product API connection timeout | `PRODUCT_API_CONNECT_TIMEOUT` | `500ms` |
 | Product API read timeout | `PRODUCT_API_READ_TIMEOUT` | `2s` |
+| Maximum active product detail lookups per instance | `PRODUCT_API_MAX_CONCURRENT_LOOKUPS` | `100` |
+| Pending product detail lookup queue capacity | `PRODUCT_API_LOOKUP_QUEUE_CAPACITY` | `1000` |
 
 ## Run the supplied mock services and load test
 
