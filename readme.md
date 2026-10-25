@@ -7,7 +7,7 @@ A Java 21 and Spring Boot service for returning details of products similar to a
 - The application scaffold listens on port `5000` by default; override it with `SERVER_PORT`.
 - The agreed endpoint is `GET /product/{productId}/similar`.
 - The mock APIs listen on port `3001`.
-- The endpoint returns similar product details for successful lookups and an empty JSON array when there are no similar IDs. Related-product failure handling and bounded concurrency are being delivered in separate changes.
+- The endpoint returns similar product details in ID order, an empty array when no similar IDs exist, and applies the documented partial-failure policy. Bounded concurrency is a separate follow-up change.
 
 ## API contract
 
@@ -35,7 +35,15 @@ The response schema and declared `404` response are defined in [similarProducts.
 
 For example, the mock returns IDs `[2,3,4]` for product `1`; the aggregate response should contain those three details in that order. Product details with `availability: false` are still valid results.
 
-The contract does not define how to handle an individual related-product lookup that returns `404`, `5xx`, or times out. Choose and document that policy before implementing the use case. The supplied load scenarios exercise these cases.
+The API follows these related-product failure rules:
+
+- Return `404` when the similar-ID service reports that the requested product does not exist.
+- Omit related products whose detail lookup returns `404`.
+- Omit isolated detail `5xx`, transport, and timeout failures if at least one detail succeeds.
+- Return `[]` if all detail lookups return `404`.
+- Return `502 Bad Gateway` if no detail succeeds and at least one lookup fails technically.
+
+The supplied load scenarios exercise these cases.
 
 ## Technology and architecture
 

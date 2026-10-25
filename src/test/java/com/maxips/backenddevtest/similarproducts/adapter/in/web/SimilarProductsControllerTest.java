@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.maxips.backenddevtest.similarproducts.application.exception.ProductDetailsUnavailableException;
+import com.maxips.backenddevtest.similarproducts.application.exception.ProductNotFoundException;
+import com.maxips.backenddevtest.similarproducts.application.exception.SimilarProductIdsUnavailableException;
 import com.maxips.backenddevtest.similarproducts.domain.ProductDetail;
 import com.maxips.backenddevtest.similarproducts.port.in.GetSimilarProductsUseCase;
 import java.math.BigDecimal;
@@ -52,6 +55,33 @@ class SimilarProductsControllerTest {
         mockMvc.perform(get("/product/1/similar"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void mapsAProductNotFoundExceptionToNotFound() throws Exception {
+        when(getSimilarProductsUseCase.getSimilarProducts("missing"))
+                .thenThrow(new ProductNotFoundException("missing"));
+
+        mockMvc.perform(get("/product/missing/similar"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void mapsSimilarIdsServiceFailureToBadGateway() throws Exception {
+        when(getSimilarProductsUseCase.getSimilarProducts("1"))
+                .thenThrow(new SimilarProductIdsUnavailableException("1", 503));
+
+        mockMvc.perform(get("/product/1/similar"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void mapsProductDetailsServiceFailureToBadGateway() throws Exception {
+        when(getSimilarProductsUseCase.getSimilarProducts("1"))
+                .thenThrow(new ProductDetailsUnavailableException("2", 503));
+
+        mockMvc.perform(get("/product/1/similar"))
+                .andExpect(status().isBadGateway());
     }
 
     private ProductDetail product(String id, String name, String price, boolean availability) {
