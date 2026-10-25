@@ -68,7 +68,16 @@ On Windows PowerShell:
 .\mvnw.cmd spring-boot:run
 ```
 
-The build targets Java 21 and uses the Maven Wrapper checked into the repository. The application starts on port `5000`; set `SERVER_PORT` to override it. The test dependencies are configured, and feature tests will be added alongside each TDD implementation pull request.
+The build targets Java 21 and uses the Maven Wrapper checked into the repository. The application starts on port `5000`; set `SERVER_PORT` to override it. Feature tests are added alongside each TDD implementation pull request.
+
+### Configuration
+
+| Setting | Environment variable | Default |
+| --- | --- | --- |
+| Application port | `SERVER_PORT` | `5000` |
+| Product API base URL | `PRODUCT_API_BASE_URL` | `http://localhost:3001` |
+| Product API connection timeout | `PRODUCT_API_CONNECT_TIMEOUT` | `500ms` |
+| Product API read timeout | `PRODUCT_API_READ_TIMEOUT` | `2s` |
 
 ## Run the supplied mock services and load test
 
@@ -107,7 +116,7 @@ The k6 script sends requests to the app through `host.docker.internal:5000`. It 
 | `pom.xml` | Java 21 and Spring Boot build configuration |
 | `mvnw`, `mvnw.cmd`, `.mvn/wrapper/` | Pinned Maven Wrapper |
 | `src/main/java/` | Spring Boot application entry point |
-| `src/main/resources/application.properties` | Application name and port configuration |
+| `src/main/resources/application.properties` | Application and upstream HTTP client configuration |
 | `.github/workflows/ci.yml` | Build verification on pushes and pull requests |
 | `similarProducts.yaml` | Contract for the API to implement |
 | `existingApis.yaml` | Contracts for the mock APIs |
