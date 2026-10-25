@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.maxips.backenddevtest.similarproducts.application.exception.ProductDetailsUnavailableException;
+import com.maxips.backenddevtest.similarproducts.application.exception.ProductLookupOverloadedException;
 import com.maxips.backenddevtest.similarproducts.application.exception.ProductNotFoundException;
 import com.maxips.backenddevtest.similarproducts.application.exception.SimilarProductIdsUnavailableException;
 import com.maxips.backenddevtest.similarproducts.domain.ProductDetail;
@@ -82,6 +83,15 @@ class SimilarProductsControllerTest {
 
         mockMvc.perform(get("/product/1/similar"))
                 .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void mapsLookupExecutorSaturationToServiceUnavailable() throws Exception {
+        when(getSimilarProductsUseCase.getSimilarProducts("1"))
+                .thenThrow(new ProductLookupOverloadedException("2"));
+
+        mockMvc.perform(get("/product/1/similar"))
+                .andExpect(status().isServiceUnavailable());
     }
 
     private ProductDetail product(String id, String name, String price, boolean availability) {
