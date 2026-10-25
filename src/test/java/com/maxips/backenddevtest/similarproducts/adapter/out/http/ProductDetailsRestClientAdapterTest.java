@@ -86,6 +86,42 @@ class ProductDetailsRestClientAdapterTest {
                 .isInstanceOf(ProductDetailsUnavailableException.class);
     }
 
+    @Test
+    void treatsAnEmptyProductIdAsProductDetailsUnavailable() {
+        mockWebServer.enqueue(jsonResponse(
+                200, "{\"id\":\"\",\"name\":\"Blazer\",\"price\":29.99,\"availability\":false}"));
+
+        assertThatThrownBy(() -> adapter.findProductDetails("3"))
+                .isInstanceOf(ProductDetailsUnavailableException.class);
+    }
+
+    @Test
+    void treatsAnEmptyProductNameAsProductDetailsUnavailable() {
+        mockWebServer.enqueue(jsonResponse(
+                200, "{\"id\":\"3\",\"name\":\"\",\"price\":29.99,\"availability\":false}"));
+
+        assertThatThrownBy(() -> adapter.findProductDetails("3"))
+                .isInstanceOf(ProductDetailsUnavailableException.class);
+    }
+
+    @Test
+    void treatsAWhitespaceOnlyProductNameAsProductDetailsUnavailable() {
+        mockWebServer.enqueue(jsonResponse(
+                200, "{\"id\":\"3\",\"name\":\"   \",\"price\":29.99,\"availability\":false}"));
+
+        assertThatThrownBy(() -> adapter.findProductDetails("3"))
+                .isInstanceOf(ProductDetailsUnavailableException.class);
+    }
+
+    @Test
+    void treatsAProductIdMismatchAsProductDetailsUnavailable() {
+        mockWebServer.enqueue(jsonResponse(
+                200, "{\"id\":\"4\",\"name\":\"Blazer\",\"price\":29.99,\"availability\":false}"));
+
+        assertThatThrownBy(() -> adapter.findProductDetails("3"))
+                .isInstanceOf(ProductDetailsUnavailableException.class);
+    }
+
     private MockResponse jsonResponse(int status, String body) {
         return new MockResponse.Builder()
                 .code(status)

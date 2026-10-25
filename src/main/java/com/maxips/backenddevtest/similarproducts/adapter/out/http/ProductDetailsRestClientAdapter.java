@@ -37,11 +37,18 @@ public class ProductDetailsRestClientAdapter implements ProductDetailsPort {
 
             if (response == null
                     || response.id() == null
+                    || response.id().isBlank()
                     || response.name() == null
+                    || response.name().isBlank()
                     || response.price() == null
                     || response.availability() == null) {
                 throw new ProductDetailsUnavailableException(
                         productId, new IllegalStateException("The product details response was incomplete"));
+            }
+            if (!response.id().equals(productId)) {
+                throw new ProductDetailsUnavailableException(
+                        productId,
+                        new IllegalStateException("The product details response ID did not match the request"));
             }
 
             return new ProductDetail(response.id(), response.name(), response.price(), response.availability());

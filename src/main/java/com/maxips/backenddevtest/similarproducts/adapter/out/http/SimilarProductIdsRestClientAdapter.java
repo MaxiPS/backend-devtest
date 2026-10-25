@@ -40,6 +40,10 @@ public class SimilarProductIdsRestClientAdapter implements SimilarProductIdsPort
                 throw new SimilarProductIdsUnavailableException(
                         productId, new IllegalStateException("The similar IDs response body was empty"));
             }
+            if (similarIds.stream().anyMatch(similarId -> similarId == null || similarId.isBlank())) {
+                throw new SimilarProductIdsUnavailableException(
+                        productId, new IllegalStateException("The similar IDs response contained a blank ID"));
+            }
 
             return List.copyOf(similarIds);
         } catch (ProductNotFoundException | SimilarProductIdsUnavailableException exception) {

@@ -102,13 +102,17 @@ The public response schema is defined in [similarProducts.yaml](./similarProduct
 | Retrieve ordered similar product IDs | `GET /product/{productId}/similarids` | `http://localhost:3001` |
 | Retrieve one product detail | `GET /product/{productId}` | `http://localhost:3001` |
 
+Similar product IDs are processed once each, preserving the first occurrence order returned by the upstream service. Invalid similar-ID responses containing a null or blank ID are treated as an upstream failure. Product detail responses must contain non-blank `id` and `name` values, and the returned ID must match the requested ID; malformed details are treated as technical lookup failures.
+
 ### Failure behavior
 
 | Situation | Public API behavior |
 | --- | --- |
 | The similar-ID service returns `404` for the requested product | Return `404 Not Found` |
 | The similar-ID service has another HTTP, transport, or timeout failure | Return `502 Bad Gateway` |
+| The similar-ID service returns a null or blank ID | Return `502 Bad Gateway` |
 | A related product detail returns `404` | Omit that product; return `200 OK` with `[]` if all related products are missing |
+| A related product detail has a blank `id` or `name`, or an ID different from the requested ID | Treat as a technical detail lookup failure |
 | Some detail lookups fail technically and at least one succeeds | Return `200 OK` with successful details in their original relative order |
 | No detail succeeds and at least one detail lookup fails technically | Return `502 Bad Gateway` |
 | Lookup capacity is exhausted and no detail succeeds | Return `503 Service Unavailable` |
