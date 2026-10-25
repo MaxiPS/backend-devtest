@@ -7,7 +7,7 @@ A Java 21 and Spring Boot service for returning details of products similar to a
 - The application scaffold listens on port `5000` by default; override it with `SERVER_PORT`.
 - The agreed endpoint is `GET /product/{productId}/similar`.
 - The mock APIs listen on port `3001`.
-- The endpoint is not implemented yet. The current scaffold can be built and started, but requests to the API route will return `404` until its feature pull request is merged.
+- The endpoint returns similar product details for successful lookups and an empty JSON array when there are no similar IDs. Related-product failure handling and bounded concurrency are being delivered in separate changes.
 
 ## API contract
 
